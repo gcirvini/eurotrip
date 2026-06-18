@@ -339,13 +339,13 @@ const LEGS_BASE = [
     fecha_sal:"? (flexible)",fecha_lle:"? (flexible)",dur:null,   noches:null, flexible:true,
     hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Fechas dependen de días en Roma. Opciones: Amalfi, Positano, Ravello" },
 
-  { id:"12", tipo:"traslado", emoji:"✈️",  desc:"Amalfi → ❓ Destino por confirmar",sub:"Por definir",
+  { id:"12", tipo:"traslado", emoji:"✈️",  desc:"Amalfi → Mykonos",               sub:"NAP → JMK",
     fecha_sal:"? (flexible)",fecha_lle:"? (flexible)",dur:null,   noches:null, flexible:true,
-    hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Destino mencionado: 'íconos' — ¿Ischia? ¿Capri? ¿Otro lugar? Confirmar" },
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"Probablemente vuelo desde Nápoles (NAP)" },
 
-  { id:"13", tipo:"estadia",  emoji:"❓", desc:"Estadía · ❓ Destino por confirmar",sub:"3 noches",
-    fecha_sal:"? (flexible)",fecha_lle:"Mié 26/8",dur:null,      noches:3,    flexible:true,
-    hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Confirmar destino ('íconos'). Sale el miércoles 26 hacia Madrid" },
+  { id:"13", tipo:"estadia",  emoji:"🏝️", desc:"Estadía · Mykonos",               sub:null,
+    fecha_sal:"? (flexible)",fecha_lle:"2026-08-26",dur:null,     noches:3,    flexible:true,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"Sale el miércoles 26 hacia Madrid" },
 
   { id:"14", tipo:"vuelo",    emoji:"✈️",  desc:"❓ → Madrid",                     sub:"? → MAD",
     fecha_sal:"Mié 26/8", fecha_lle:"Mié 26/8",  dur:null,       noches:null, flexible:false,
@@ -359,6 +359,54 @@ const LEGS_BASE = [
     fecha_sal:"Sáb 29/8", fecha_lle:"Dom 30/8",  dur:"~14 hs",   noches:null, flexible:false,
     hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Hora de salida por confirmar: ~14:00 o 23:55" },
 ];
+
+// ═══════════════════════════════════════════════════
+//  AEROPUERTOS
+// ═══════════════════════════════════════════════════
+const AIRPORTS = [
+  { city:"Mendoza",      code:"MDZ", country:"🇦🇷 Argentina" },
+  { city:"Buenos Aires", code:"EZE", country:"🇦🇷 Argentina" },
+  { city:"Madrid",       code:"MAD", country:"🇪🇸 España"   },
+  { city:"Ibiza",        code:"IBZ", country:"🇪🇸 España"   },
+  { city:"Mallorca",     code:"PMI", country:"🇪🇸 España"   },
+  { city:"Barcelona",    code:"BCN", country:"🇪🇸 España"   },
+  { city:"Roma",         code:"FCO", country:"🇮🇹 Italia"   },
+  { city:"Nápoles",      code:"NAP", country:"🇮🇹 Italia"   },
+  { city:"Mykonos",      code:"JMK", country:"🇬🇷 Grecia"   },
+  { city:"Santorini",    code:"JTR", country:"🇬🇷 Grecia"   },
+];
+
+// ═══════════════════════════════════════════════════
+//  UTILIDADES DE FECHA
+// ═══════════════════════════════════════════════════
+const YEAR = 2026;
+const DAYS_ES = ["Dom","Lun","Mar","Mié","Jue","Vie","Sáb"];
+
+function isoToDisplay(iso) {
+  if (!iso || !iso.match(/^\d{4}-\d{2}-\d{2}$/)) return iso || "";
+  const d = new Date(iso + "T12:00:00");
+  return `${DAYS_ES[d.getDay()]} ${d.getDate()}/${d.getMonth()+1}`;
+}
+
+function displayToIso(str) {
+  // "Mar 4/8" → "2026-08-04"
+  if (!str) return "";
+  if (str.match(/^\d{4}-\d{2}-\d{2}$/)) return str; // ya es ISO
+  const m = str.match(/(\d+)\/(\d+)/);
+  if (!m) return "";
+  return `${YEAR}-${String(m[2]).padStart(2,'0')}-${String(m[1]).padStart(2,'0')}`;
+}
+
+function calcNights(isoSal, isoLle) {
+  const s = displayToIso(isoSal), e = displayToIso(isoLle);
+  if (!s || !e) return null;
+  const diff = Math.round((new Date(e+"T12:00:00") - new Date(s+"T12:00:00")) / 86400000);
+  return diff > 0 ? diff : null;
+}
+
+function getLegTipo(id) {
+  return LEGS_BASE.find(l => l.id === id)?.tipo || "vuelo";
+}
 
 // ═══════════════════════════════════════════════════
 //  ESTADO EDITABLE (se sincroniza con Firebase)
@@ -512,10 +560,13 @@ function renderTable() {
       rows += `<tr class="section-div"><td colspan="12">${sections[leg.id]}</td></tr>`;
     }
 
-    // Duration / noches cell
+    // Duration / noches cell — auto-calcula si hay fechas ISO
     let durCell = "";
-    if (leg.noches != null) {
-      durCell = `<span class="noches-chip">${leg.noches} noches</span>`;
+    if (leg.tipo === "estadia") {
+      const n = calcNights(s.fecha_sal || leg.fecha_sal, s.fecha_lle || leg.fecha_lle) ?? leg.noches;
+      durCell = n != null
+        ? `<span class="noches-chip">${n} noche${n!==1?"s":""}</span>`
+        : `<span class="warn-txt" style="font-size:11px">Elegí fechas</span>`;
     } else if (leg.dur) {
       durCell = `<span style="color:#90A4AE;font-size:12px">${leg.dur}</span>`;
     } else {
@@ -545,10 +596,10 @@ function renderTable() {
     <tr class="${leg.tipo}${leg.flexible?' flexible':''}">
       <td style="color:#90A4AE;font-size:12px;font-weight:700">${String(rowNum).padStart(2,"0")}</td>
       <td><span class="${badgeClass}">${badgeTxt}</span>${leg.sub ? `<div style="font-size:10px;color:#90A4AE;margin-top:3px">${leg.sub}</div>`:""}</td>
-      <td style="font-weight:600">${leg.emoji} ${editableCell(leg.id, "desc", desc, "Descripción")}${leg.flexible?` <span style="font-size:10px;color:var(--warn);font-weight:400">⚡flex</span>`:""}<div style="font-size:10px;color:#90A4AE;margin-top:2px">${editableCell(leg.id, "sub", sub, "Origen → Destino")}</div></td>
-      <td>${editableCell(leg.id, "fecha_sal", fechaSal, "ej: Lun 4/8")}</td>
+      <td style="font-weight:600">${leg.emoji} ${editableCell(leg.id, "desc", desc, "Descripción")}${leg.flexible?` <span style="font-size:10px;color:var(--warn);font-weight:400">⚡flex</span>`:""}<div style="font-size:10px;color:#90A4AE;margin-top:2px">${routeCell(leg.id, sub)}</div></td>
+      <td>${dateCell(leg.id, "fecha_sal", fechaSal)}</td>
       <td>${editableCell(leg.id, "hora_sal", horaSal, "08:00")}</td>
-      <td>${editableCell(leg.id, "fecha_lle", fechaLle, "ej: Mar 5/8")}</td>
+      <td>${dateCell(leg.id, "fecha_lle", fechaLle)}</td>
       <td>${editableCell(leg.id, "hora_lle", horaLle, "18:00")}</td>
       <td>${durCell}</td>
       <td>${editableCell(leg.id, "compania", compania, "Aerolínea / medio")}</td>
@@ -569,34 +620,108 @@ function renderTable() {
   tbody.innerHTML = rows;
 }
 
+// ── Celda de texto editable ──
 function editableCell(id, field, value, placeholder, multiline=false) {
-  const display = value || `<span class="empty" style="color:#BDBDBD;font-style:italic">${placeholder}</span>`;
+  const display = value || `<span style="color:#BDBDBD;font-style:italic">${placeholder}</span>`;
   const tag = multiline ? "div" : "span";
   return `<${tag} class="editable${value?"":" empty"}" onclick="startEdit(this,'${id}','${field}','${multiline}')">${display}</${tag}>`;
 }
 
+// ── Celda de fecha (abre calendar picker) ──
+function dateCell(id, field, value) {
+  const iso  = displayToIso(value);
+  const disp = iso ? isoToDisplay(iso) : (value || "");
+  const label = disp || `<span style="color:#BDBDBD;font-style:italic">📅 Elegir fecha</span>`;
+  return `<span class="editable${disp?"":" empty"}" onclick="startDateEdit(this,'${id}','${field}')">${label}</span>`;
+}
+
+// ── Celda de ruta (abre selector de aeropuertos) ──
+function routeCell(id, value) {
+  const label = value || `<span style="color:#BDBDBD;font-style:italic">Origen → Destino</span>`;
+  return `<span class="editable${value?"":" empty"}" onclick="startRouteEdit(this,'${id}')">${label}</span>`;
+}
+
+// ── Edición de texto ──
 function startEdit(el, id, field, multiline) {
   multiline = multiline === "true" || multiline === true;
-  const s = state[id] || {};
-  const currentVal = s[field] || "";
+  const currentVal = (state[id] || {})[field] || "";
   el.classList.add("editing");
   if (multiline) {
-    el.innerHTML = `<textarea onblur="commitEdit(this,'${id}','${field}')" onkeydown="if(event.key==='Escape')cancelEdit(this,'${id}','${field}')">${currentVal}</textarea>`;
+    el.innerHTML = `<textarea onblur="commitEdit(this,'${id}','${field}')" onkeydown="if(event.key==='Escape')renderAll()">${currentVal}</textarea>`;
   } else {
-    el.innerHTML = `<input type="text" value="${currentVal}" onblur="commitEdit(this,'${id}','${field}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')cancelEdit(this,'${id}','${field}')" />`;
+    el.innerHTML = `<input type="text" value="${currentVal}" onblur="commitEdit(this,'${id}','${field}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')renderAll()" />`;
   }
   el.querySelector("input,textarea").focus();
+}
+
+// ── Edición de fecha con calendar picker ──
+function startDateEdit(el, id, field) {
+  const current = displayToIso((state[id]||{})[field] || "");
+  el.classList.add("editing");
+  el.innerHTML = `<input type="date" value="${current||''}" min="2026-07-01" max="2026-12-31"
+    style="border:2px solid #1565C0;border-radius:4px;padding:3px 6px;font-size:13px;font-family:inherit"
+    onchange="commitDateEdit(this,'${id}','${field}')"
+    onblur="if(!this._committed)renderAll()"
+    onkeydown="if(event.key==='Escape')renderAll()" />`;
+  const inp = el.querySelector("input");
+  inp.focus();
+  try { inp.showPicker(); } catch(e) {}
+}
+
+function commitDateEdit(input, id, field) {
+  input._committed = true;
+  const iso = input.value; // "2026-08-04"
+  if (!iso) { renderAll(); return; }
+  saveField(id, field, iso);
+  // re-render handled by Firebase; si no hay Firebase, manual
+  if (!db) renderAll();
+}
+
+// ── Editor de ruta (aeropuertos) ──
+function startRouteEdit(el, id) {
+  const current = (state[id]||{}).sub || "";
+  const parts   = current.split("→").map(s=>s.trim());
+  const fromCode = parts[0] || "";
+  const toCode   = parts[1] || "";
+
+  const opts = AIRPORTS.map(a =>
+    `<option value="${a.code}" ${a.code===fromCode?"selected":""}>${a.code} — ${a.city} ${a.country}</option>`
+  ).join("");
+  const opts2 = AIRPORTS.map(a =>
+    `<option value="${a.code}" ${a.code===toCode?"selected":""}>${a.code} — ${a.city} ${a.country}</option>`
+  ).join("");
+
+  el.classList.add("editing");
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+      <select id="route-from-${id}" style="padding:3px 6px;border:2px solid #1565C0;border-radius:4px;font-size:12px">
+        <option value="">Origen</option>${opts}
+      </select>
+      <span style="color:#90A4AE">→</span>
+      <select id="route-to-${id}" style="padding:3px 6px;border:2px solid #1565C0;border-radius:4px;font-size:12px">
+        <option value="">Destino</option>${opts2}
+      </select>
+      <button onclick="commitRouteEdit('${id}')" style="padding:3px 8px;background:#1565C0;color:white;border:none;border-radius:4px;cursor:pointer;font-size:12px">OK</button>
+      <button onclick="renderAll()" style="padding:3px 8px;background:#EEE;border:none;border-radius:4px;cursor:pointer;font-size:12px">✕</button>
+    </div>`;
+}
+
+function commitRouteEdit(id) {
+  const from = document.getElementById("route-from-"+id)?.value || "";
+  const to   = document.getElementById("route-to-"+id)?.value   || "";
+  if (!from && !to) { renderAll(); return; }
+  const val = [from, to].filter(Boolean).join(" → ");
+  saveField(id, "sub", val);
+  if (!db) renderAll();
 }
 
 function commitEdit(input, id, field) {
   const val = input.value.trim();
   saveField(id, field, val);
-  if (!db) renderAll();  // Firebase listener handles re-render when connected
+  if (!db) renderAll();
 }
 
-function cancelEdit(input, id, field) {
-  renderAll();
-}
+function cancelEdit() { renderAll(); }
 
 function onStatusChange(id, sel) {
   const val = sel.value;
