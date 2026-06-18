@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Viaje Europa 2026 · Gabriel & Enzo</title>
+
+  <!-- Firebase SDK (compat — sin npm, carga directo del CDN) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --vuelo:       #1565C0; --vuelo-bg:    #E3F2FD;
+      --estadia:     #2E7D32; --estadia-bg:  #E8F5E9;
+      --traslado:    #BF360C; --traslado-bg: #FBE9E7;
+      --warn:        #F57F17;
+      --header:      #0D47A1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #ECEFF1; color: #263238; }
+
+    /* ── HEADER ── */
+    .header {
+      background: linear-gradient(135deg, #0D47A1, #1976D2);
+      color: white; padding: 24px 36px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .header p  { font-size: 13px; opacity: .7; margin-top: 3px; }
+    .sync-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+    .sync-pill.ok   { background: rgba(76,175,80,.25); color: #A5D6A7; }
+    .sync-pill.err  { background: rgba(244,67,54,.25);  color: #EF9A9A; }
+    .sync-pill.loc  { background: rgba(255,255,255,.15); color: rgba(255,255,255,.75); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot.ok  { background: #4CAF50; }
+    .dot.err { background: #F44336; }
+    .dot.loc { background: rgba(255,255,255,.6); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    /* ── SETUP BANNER ── */
+    #setup-banner {
+      background: #FFF8E1; border-left: 4px solid #F9A825;
+      padding: 12px 36px; font-size: 13px; color: #5D4037;
+      display: none; align-items: center; gap:8px;
+    }
+    #setup-banner a { color: #1565C0; font-weight: 600; }
+
+    /* ── CONTROLS ── */
+    .controls {
+      background: white; border-bottom: 1px solid #E0E0E0;
+      padding: 10px 36px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+    }
+    .controls label { font-size: 13px; color: #666; }
+    select, input[type=text] {
+      padding: 5px 10px; border: 1px solid #CCC; border-radius: 6px;
+      font-size: 13px; background: white; color: #333;
+    }
+    .btn {
+      padding: 6px 14px; border: none; border-radius: 6px; cursor: pointer;
+      font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-primary { background: #1565C0; color: white; }
+    .btn-ghost   { background: white; color: #555; border: 1px solid #DDD; }
+    .btn:hover   { opacity: .85; }
+    .spacer      { flex: 1; }
+
+    /* ── SUMMARY CARDS ── */
+    .summary { padding: 18px 36px; display: grid; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 12px; }
+    .card { background: white; border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+    .card-lbl { font-size: 10px; color: #9E9E9E; text-transform: uppercase; letter-spacing: .8px; font-weight: 700; }
+    .card-val { font-size: 24px; font-weight: 800; color: #0D47A1; margin-top: 6px; }
+    .card-sub { font-size: 11px; color: #BDBDBD; margin-top: 2px; }
+
+    /* ── LEGEND ── */
+    .legend {
+      padding: 6px 36px 10px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #78909C; }
+    .lbar { width: 3px; height: 14px; border-radius: 2px; }
+    .lflex { width: 18px; height: 10px; background: #FFFDE7; border: 1px solid #F9A825; border-radius: 2px; }
+
+    /* ── TABLE ── */
+    .table-wrap { padding: 0 36px 40px; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.1); }
+    thead tr { background: #37474F; }
+    th {
+      padding: 10px 12px; color: #B0BEC5; font-size: 10px;
+      font-weight: 700; text-transform: uppercase; letter-spacing: .7px;
+      text-align: left; white-space: nowrap;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid #F5F5F5; font-size: 13px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+
+    tr.vuelo    td:first-child { border-left: 3px solid var(--vuelo); }
+    tr.estadia  td:first-child { border-left: 3px solid var(--estadia); }
+    tr.traslado td:first-child { border-left: 3px solid var(--traslado); }
+
+    tr.flexible td { background: #FFFDE7; }
+    tr.flexible:hover td { background: #FFF9C4; }
+    tr:not(.flexible):not(.total-row):hover td { background: #FAFAFA; }
+
+    /* badges */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+    .badge-vuelo    { background: var(--vuelo-bg);    color: var(--vuelo); }
+    .badge-estadia  { background: var(--estadia-bg);  color: var(--estadia); }
+    .badge-traslado { background: var(--traslado-bg); color: var(--traslado); }
+
+    /* status select */
+    .status-sel {
+      padding: 3px 8px; border: none; border-radius: 12px;
+      font-size: 10px; font-weight: 700; cursor: pointer;
+      appearance: none; -webkit-appearance: none;
+    }
+    .s-pendiente { background: #EEEEEE; color: #757575; }
+    .s-buscando  { background: #E3F2FD; color: #1565C0; }
+    .s-reservado { background: #E8F5E9; color: #2E7D32; }
+    .s-pagado    { background: #1B5E20; color: white; }
+
+    /* editable cells */
+    .editable { cursor: pointer; display: inline-block; min-width: 50px; border-bottom: 1px dashed #BDBDBD; }
+    .editable:hover { border-bottom-color: #1565C0; }
+    .editable.empty { color: #BDBDBD; font-style: italic; }
+    .editing input, .editing textarea {
+      width: 100%; border: 2px solid #1565C0; border-radius: 4px;
+      padding: 3px 6px; font-size: 13px; font-family: inherit;
+    }
+    .editing textarea { resize: vertical; min-height: 52px; }
+
+    .cost { font-weight: 700; color: #1565C0; }
+    .cost.empty { font-weight: 400; color: #BDBDBD; font-style: italic; }
+    .nota { font-size: 11px; color: #78909C; max-width: 200px; }
+    .nota.empty { color: #BDBDBD; font-style: italic; }
+    .noches-chip { background: #ECEFF1; border-radius: 10px; padding: 2px 7px; font-size: 11px; font-weight: 700; color: #546E7A; white-space: nowrap; }
+    .warn-txt { color: var(--warn); }
+
+    tr.total-row td { background: #37474F; color: white; font-weight: 700; font-size: 14px; border-bottom: none; }
+
+    /* section dividers */
+    tr.section-div td { background: #ECEFF1; font-size: 10px; font-weight: 700; color: #90A4AE; text-transform: uppercase; letter-spacing: 1.2px; padding: 6px 12px; }
+
+    @media print {
+      body { background: white; }
+      .controls, #setup-banner, .sync-pill, .btn { display: none !important; }
+      .header { padding: 16px 20px; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .table-wrap, .summary, .legend { padding-left: 16px; padding-right: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <h1>✈️ Viaje Europa 2026 · Gabriel & Enzo</h1>
+    <p>4 ago → 30 ago · 26 días · Hacé clic en cualquier celda para editarla</p>
+  </div>
+  <div id="sync-status" class="sync-pill loc">
+    <div class="dot loc" id="sync-dot"></div>
+    <span id="sync-txt">Solo local</span>
+  </div>
+</div>
+
+<!-- SETUP BANNER -->
+<div id="setup-banner">
+  ⚠️ Falta habilitar Realtime Database en Firebase — los cambios se guardan <strong>solo en este navegador</strong>.
+  <a href="#" onclick="document.getElementById('setup-modal').style.display='flex'">Ver instrucciones</a>
+</div>
+
+<!-- CONTROLS -->
+<div class="controls">
+  <label>Moneda:</label>
+  <select id="currency" onchange="renderAll()">
+    <option value="EUR">€ EUR</option>
+    <option value="USD">$ USD</option>
+    <option value="ARS">$ ARS</option>
+  </select>
+  <label style="margin-left:8px">Ver:</label>
+  <select id="view-filter" onchange="renderAll()">
+    <option value="all">Todo</option>
+    <option value="vuelo">Solo vuelos</option>
+    <option value="estadia">Solo estadías</option>
+    <option value="traslado">Solo traslados</option>
+    <option value="pendiente">Pendientes</option>
+    <option value="flexible">Fechas flexibles</option>
+  </select>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost" onclick="manualRefresh()">🔄 Actualizar</button>
+  <button class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
+  <button class="btn btn-ghost" onclick="exportJSON()">⬇ Exportar JSON</button>
+  <button class="btn btn-ghost" onclick="importJSON()">⬆ Importar JSON</button>
+</div>
+
+<!-- SUMMARY CARDS -->
+<div class="summary">
+  <div class="card">
+    <div class="card-lbl">Total del viaje</div>
+    <div class="card-val" id="total-cost">—</div>
+    <div class="card-sub" id="total-sub">Sin costos cargados</div>
+  </div>
+  <div class="card">
+    <div class="card-lbl">Por persona</div>
+    <div class="card-val" id="per-person">—</div>
+    <div class="card-sub">÷ 2 personas</div>
+  </div>
+  <div class="card">
+    <div class="card-lbl">Vuelos</div>
+    <div class="card-val" id="total-flights">—</div>
+    <div class="card-sub" id="flights-count"></div>
+  </div>
+  <div class="card">
+    <div class="card-lbl">Alojamiento</div>
+    <div class="card-val" id="total-accom">—</div>
+    <div class="card-sub" id="accom-nights"></div>
+  </div>
+  <div class="card">
+    <div class="card-lbl">Reservado ✓</div>
+    <div class="card-val" id="booked-count">0</div>
+    <div class="card-sub" id="booked-sub">de <span id="total-legs">0</span> tramos</div>
+  </div>
+  <div class="card">
+    <div class="card-lbl">⚠️ Por definir</div>
+    <div class="card-val" id="pending-count" style="color:#F57F17">0</div>
+    <div class="card-sub">fechas o destinos</div>
+  </div>
+</div>
+
+<!-- LEGEND -->
+<div class="legend">
+  <div class="legend-item"><div class="lbar" style="background:var(--vuelo)"></div> Vuelo/Ferry</div>
+  <div class="legend-item"><div class="lbar" style="background:var(--estadia)"></div> Estadía</div>
+  <div class="legend-item"><div class="lbar" style="background:var(--traslado)"></div> Traslado</div>
+  <div class="legend-item"><div class="lflex"></div> Fecha flexible</div>
+  <div class="legend-item" style="margin-left:auto;font-size:11px;color:#BDBDBD">Hacé clic en cualquier celda subrayada para editar · Los cambios se guardan automáticamente</div>
+</div>
+
+<!-- TABLE -->
+<div class="table-wrap">
+  <table id="main-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Tipo</th>
+        <th>Descripción</th>
+        <th>Fecha salida</th>
+        <th>Hora salida</th>
+        <th>Fecha llegada</th>
+        <th>Hora llegada</th>
+        <th>Duración / Noches</th>
+        <th>Compañía / Medio</th>
+        <th>Costo total</th>
+        <th>Estado</th>
+        <th>Notas</th>
+      </tr>
+    </thead>
+    <tbody id="table-body"></tbody>
+  </table>
+</div>
+
+<!-- SETUP MODAL -->
+<div id="setup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:28px;max-width:560px;width:90%;position:relative;font-size:13px;line-height:1.7;">
+    <button onclick="document.getElementById('setup-modal').style.display='none'"
+      style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:18px;cursor:pointer;color:#999">✕</button>
+    <h2 style="font-size:17px;margin-bottom:16px">🔥 Habilitar Firebase Realtime Database</h2>
+    <ol style="padding-left:18px;color:#444">
+      <li>En la consola de Firebase, en el menú izquierdo: <strong>Build → Realtime Database</strong>.</li>
+      <li>Hacé clic en <strong>"Create database"</strong> → elegí la región más cercana (us-central1 está bien) → <strong>"Start in test mode"</strong> → "Enable".</li>
+      <li>¡Listo! El planificador ya tiene tu config cargada. Al abrir el HTML va a conectarse solo.</li>
+    </ol>
+    <p style="margin-top:14px;color:#78909C;font-size:12px">Los cambios de vos y Enzo se sincronizan en tiempo real — sin recargar la página.</p>
+    <button class="btn btn-primary" style="margin-top:16px" onclick="document.getElementById('setup-modal').style.display='none'">Entendido</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  FIREBASE CONFIG
+// ═══════════════════════════════════════════════════
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyBlAPvv72l7eX8bMQHKs9pWKOoKD5XdIIo",
+  authDomain:        "eurotrip-3f64a.firebaseapp.com",
+  databaseURL:       "https://eurotrip-3f64a-default-rtdb.firebaseio.com",
+  projectId:         "eurotrip-3f64a",
+  storageBucket:     "eurotrip-3f64a.firebasestorage.app",
+  messagingSenderId: "493291764452",
+  appId:             "1:493291764452:web:e758b79822b907bb368af1"
+};
+const FB_PATH = "viaje-europa-2026";
+
+// ═══════════════════════════════════════════════════
+//  DATOS DEL VIAJE — tramos fijos
+// ═══════════════════════════════════════════════════
+const LEGS_BASE = [
+  { id:"01", tipo:"vuelo",    emoji:"✈️",  desc:"Buenos Aires → Madrid",           sub:"EZE → MAD",
+    fecha_sal:"Mar 4/8",   fecha_lle:"Mié 5/8",   dur:"~30 hs",   noches:null, flexible:false,
+    hora_sal_def:"11:00",  hora_lle_def:"17:25",  nota_def:"" },
+
+  { id:"02", tipo:"vuelo",    emoji:"✈️",  desc:"Madrid → Ibiza",                  sub:"MAD → IBZ",
+    fecha_sal:"Mié 5/8",  fecha_lle:"Mié 5/8",   dur:"~1h 15min",noches:null, flexible:false,
+    hora_sal_def:"",       hora_lle_def:"18:40",  nota_def:"⚠️ Mismo día llegada a Madrid — verificar tiempo de conexión" },
+
+  { id:"03", tipo:"estadia",  emoji:"🏖️", desc:"Estadía · Ibiza",                  sub:null,
+    fecha_sal:"Mié 5/8",  fecha_lle:"Lun 10/8",  dur:null,       noches:5,    flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"" },
+
+  { id:"04", tipo:"vuelo",    emoji:"⛴️",  desc:"Ibiza → Mallorca",                sub:"Ferry o vuelo nocturno",
+    fecha_sal:"Lun 10/8", fecha_lle:"Lun 10/8",  dur:"~4h 30min",noches:null, flexible:false,
+    hora_sal_def:"02:00",  hora_lle_def:"06:30",  nota_def:"" },
+
+  { id:"05", tipo:"estadia",  emoji:"🏝️", desc:"Estadía · Mallorca",               sub:null,
+    fecha_sal:"Lun 10/8", fecha_lle:"Sáb 15/8",  dur:null,       noches:5,    flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"" },
+
+  { id:"06", tipo:"traslado", emoji:"✈️",  desc:"Mallorca → Barcelona",            sub:"PMI → BCN",
+    fecha_sal:"Sáb 15/8", fecha_lle:"Sáb 15/8",  dur:"~1h",      noches:null, flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"Vuelo o ferry" },
+
+  { id:"07", tipo:"estadia",  emoji:"🏙️", desc:"Estadía · Barcelona",              sub:null,
+    fecha_sal:"Sáb 15/8", fecha_lle:"Mar 18/8",  dur:null,       noches:3,    flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"" },
+
+  { id:"08", tipo:"traslado", emoji:"✈️",  desc:"Barcelona → Roma",               sub:"BCN → FCO/CIA",
+    fecha_sal:"Mar 18/8", fecha_lle:"Mar 18/8",  dur:"~2h",      noches:null, flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"" },
+
+  { id:"09", tipo:"estadia",  emoji:"🏛️", desc:"Estadía · Roma",                   sub:null,
+    fecha_sal:"Mar 18/8", fecha_lle:"? (flexible)",dur:null,      noches:null, flexible:true,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Definir: 2 o 3 noches (cambia el resto del itinerario)" },
+
+  { id:"10", tipo:"traslado", emoji:"🚂",  desc:"Roma → Nápoles → Costa Amalfitana",sub:"Tren + bus/ferry",
+    fecha_sal:"? (flexible)",fecha_lle:"? (flexible)",dur:"~3h total",noches:null,flexible:true,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"Tren Termini→Napoli Centrale ~1h 10min. Luego ferry o bus a Amalfi/Positano" },
+
+  { id:"11", tipo:"estadia",  emoji:"🌊", desc:"Estadía · Costa Amalfitana",       sub:null,
+    fecha_sal:"? (flexible)",fecha_lle:"? (flexible)",dur:null,   noches:null, flexible:true,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Fechas dependen de días en Roma. Opciones: Amalfi, Positano, Ravello" },
+
+  { id:"12", tipo:"traslado", emoji:"✈️",  desc:"Amalfi → ❓ Destino por confirmar",sub:"Por definir",
+    fecha_sal:"? (flexible)",fecha_lle:"? (flexible)",dur:null,   noches:null, flexible:true,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Destino mencionado: 'íconos' — ¿Ischia? ¿Capri? ¿Otro lugar? Confirmar" },
+
+  { id:"13", tipo:"estadia",  emoji:"❓", desc:"Estadía · ❓ Destino por confirmar",sub:"3 noches",
+    fecha_sal:"? (flexible)",fecha_lle:"Mié 26/8",dur:null,      noches:3,    flexible:true,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Confirmar destino ('íconos'). Sale el miércoles 26 hacia Madrid" },
+
+  { id:"14", tipo:"vuelo",    emoji:"✈️",  desc:"❓ → Madrid",                     sub:"? → MAD",
+    fecha_sal:"Mié 26/8", fecha_lle:"Mié 26/8",  dur:null,       noches:null, flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"" },
+
+  { id:"15", tipo:"estadia",  emoji:"🏙️", desc:"Estadía · Madrid",                sub:null,
+    fecha_sal:"Mié 26/8", fecha_lle:"Sáb 29/8",  dur:null,       noches:3,    flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"" },
+
+  { id:"16", tipo:"vuelo",    emoji:"✈️",  desc:"Madrid → Mendoza",               sub:"MAD → MDZ",
+    fecha_sal:"Sáb 29/8", fecha_lle:"Dom 30/8",  dur:"~14 hs",   noches:null, flexible:false,
+    hora_sal_def:"",       hora_lle_def:"",        nota_def:"⚠️ Hora de salida por confirmar: ~14:00 o 23:55" },
+];
+
+// ═══════════════════════════════════════════════════
+//  ESTADO EDITABLE (se sincroniza con Firebase)
+// ═══════════════════════════════════════════════════
+let state = {};
+let db = null;
+
+function defaultState() {
+  const s = {};
+  LEGS_BASE.forEach(l => {
+    s[l.id] = { hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
+  });
+  return s;
+}
+
+function mergeState(remote) {
+  LEGS_BASE.forEach(l => {
+    if (!remote[l.id]) remote[l.id] = { hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
+  });
+  return remote;
+}
+
+// ═══════════════════════════════════════════════════
+//  FIREBASE — init y sync en tiempo real
+// ═══════════════════════════════════════════════════
+function initStorage() {
+  try {
+    firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.database();
+
+    // Escucha cambios en tiempo real — se dispara también al cargar
+    db.ref(FB_PATH).on("value", snap => {
+      const val = snap.val();
+      if (val) {
+        state = mergeState(val);
+      } else {
+        state = defaultState();
+        db.ref(FB_PATH).set(state);
+      }
+      renderAll();
+    });
+
+    // Indicador de conexión
+    db.ref(".info/connected").on("value", snap => {
+      if (snap.val()) setSyncStatus("ok", "Sincronizado");
+      else            setSyncStatus("err", "Sin conexión");
+    });
+  } catch(e) {
+    console.error("Firebase error:", e);
+    setSyncStatus("err", "Error Firebase");
+    loadLocal(); renderAll();
+  }
+}
+
+function loadLocal() {
+  const saved = localStorage.getItem("viaje-europa-2026");
+  state = saved ? mergeState(JSON.parse(saved)) : defaultState();
+}
+
+function saveField(id, field, value) {
+  if (!state[id]) state[id] = {};
+  state[id][field] = value;
+  if (db) {
+    db.ref(`${FB_PATH}/${id}/${field}`).set(value);
+  } else {
+    localStorage.setItem("viaje-europa-2026", JSON.stringify(state));
+  }
+}
+
+function setSyncStatus(type, text) {
+  const pill = document.getElementById("sync-status");
+  const dot  = document.getElementById("sync-dot");
+  const txt  = document.getElementById("sync-txt");
+  pill.className = "sync-pill " + type;
+  dot.className  = "dot " + type;
+  txt.textContent = text;
+}
+
+function manualRefresh() {
+  // Con Firebase el sync es automático — este botón solo muestra confirmación
+  setSyncStatus("ok", "Al día ✓");
+  setTimeout(() => setSyncStatus("ok", "Sincronizado"), 2000);
+}
+
+// ═══════════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════════
+const CURRENCY_SYMBOL = { EUR:"€", USD:"$", ARS:"$" };
+
+function currSymbol() { return CURRENCY_SYMBOL[document.getElementById("currency").value] || "€"; }
+
+function renderAll() {
+  renderTable();
+  renderSummary();
+}
+
+function renderTable() {
+  const filter = document.getElementById("view-filter").value;
+  const tbody  = document.getElementById("table-body");
+  let rows = "";
+  let rowNum = 0;
+
+  // Section labels
+  const sections = {
+    "01": "🌍 Ida — Argentina → España",
+    "03": "🏖️ Islas Baleares",
+    "07": "🏙️ Barcelona",
+    "08": "🇮🇹 Italia",
+    "14": "🔙 Vuelta a Madrid",
+    "16": "🏠 Regreso a Argentina"
+  };
+
+  LEGS_BASE.forEach(leg => {
+    const s = state[leg.id] || {};
+
+    // Apply filter
+    if (filter === "vuelo"     && leg.tipo !== "vuelo")    return;
+    if (filter === "estadia"   && leg.tipo !== "estadia")  return;
+    if (filter === "traslado"  && leg.tipo !== "traslado") return;
+    if (filter === "pendiente" && s.estado !== "pendiente") return;
+    if (filter === "flexible"  && !leg.flexible)           return;
+
+    rowNum++;
+
+    // Section divider
+    if (sections[leg.id] && filter === "all") {
+      rows += `<tr class="section-div"><td colspan="12">${sections[leg.id]}</td></tr>`;
+    }
+
+    // Duration / noches cell
+    let durCell = "";
+    if (leg.noches != null) {
+      durCell = `<span class="noches-chip">${leg.noches} noches</span>`;
+    } else if (leg.dur) {
+      durCell = `<span style="color:#90A4AE;font-size:12px">${leg.dur}</span>`;
+    } else {
+      durCell = `<span class="warn-txt" style="font-size:11px">Por definir</span>`;
+    }
+
+    const badgeClass = `badge badge-${leg.tipo}`;
+    const badgeTxt   = leg.tipo === "vuelo" ? "✈ Vuelo" : leg.tipo === "estadia" ? "🏨 Estadía" : "🚌 Traslado";
+
+    const horaSal = s.hora_sal ?? leg.hora_sal_def;
+    const horaLle = s.hora_lle ?? leg.hora_lle_def;
+    const compania = s.compania || "";
+    const costo    = s.costo    || "";
+    const notas    = s.notas    || "";
+    const estado   = s.estado   || "pendiente";
+
+    const estadoClass = "s-" + estado;
+    const estadoOpts  = ["pendiente","buscando","reservado","pagado"]
+      .map(v => `<option value="${v}" ${v===estado?"selected":""}>${v.charAt(0).toUpperCase()+v.slice(1)}</option>`)
+      .join("");
+
+    rows += `
+    <tr class="${leg.tipo}${leg.flexible?' flexible':''}">
+      <td style="color:#90A4AE;font-size:12px;font-weight:700">${String(rowNum).padStart(2,"0")}</td>
+      <td><span class="${badgeClass}">${badgeTxt}</span>${leg.sub ? `<div style="font-size:10px;color:#90A4AE;margin-top:3px">${leg.sub}</div>`:""}</td>
+      <td style="font-weight:600">${leg.emoji} ${leg.desc}${leg.flexible?` <span style="font-size:10px;color:var(--warn);font-weight:400">⚡flex</span>`:""}</td>
+      <td style="white-space:nowrap;color:#546E7A">${leg.fecha_sal}</td>
+      <td>${editableCell(leg.id, "hora_sal", horaSal, "08:00")}</td>
+      <td style="white-space:nowrap;color:#546E7A">${leg.fecha_lle}</td>
+      <td>${editableCell(leg.id, "hora_lle", horaLle, "18:00")}</td>
+      <td>${durCell}</td>
+      <td>${editableCell(leg.id, "compania", compania, "Aerolínea / medio")}</td>
+      <td class="cost${costo?"":" empty"}">${costo ? currSymbol()+' '+Number(costo).toLocaleString('es-AR') : editableCell(leg.id, "costo", costo, "0")}</td>
+      <td>
+        <select class="status-sel ${estadoClass}" onchange="onStatusChange('${leg.id}',this)">
+          ${estadoOpts}
+        </select>
+      </td>
+      <td class="nota${notas?"":" empty"}">${editableCell(leg.id, "notas", notas, "Agregar nota…", true)}</td>
+    </tr>`;
+  });
+
+  if (rowNum === 0) {
+    rows = `<tr><td colspan="12" style="text-align:center;color:#BDBDBD;padding:24px">Sin resultados para el filtro seleccionado.</td></tr>`;
+  }
+
+  tbody.innerHTML = rows;
+}
+
+function editableCell(id, field, value, placeholder, multiline=false) {
+  const display = value || `<span class="empty" style="color:#BDBDBD;font-style:italic">${placeholder}</span>`;
+  const tag = multiline ? "div" : "span";
+  return `<${tag} class="editable${value?"":" empty"}" onclick="startEdit(this,'${id}','${field}','${multiline}')">${display}</${tag}>`;
+}
+
+function startEdit(el, id, field, multiline) {
+  multiline = multiline === "true" || multiline === true;
+  const s = state[id] || {};
+  const currentVal = s[field] || "";
+  el.classList.add("editing");
+  if (multiline) {
+    el.innerHTML = `<textarea onblur="commitEdit(this,'${id}','${field}')" onkeydown="if(event.key==='Escape')cancelEdit(this,'${id}','${field}')">${currentVal}</textarea>`;
+  } else {
+    el.innerHTML = `<input type="text" value="${currentVal}" onblur="commitEdit(this,'${id}','${field}')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')cancelEdit(this,'${id}','${field}')" />`;
+  }
+  el.querySelector("input,textarea").focus();
+}
+
+function commitEdit(input, id, field) {
+  const val = input.value.trim();
+  saveField(id, field, val);
+  if (!db) renderAll();  // Firebase listener handles re-render when connected
+}
+
+function cancelEdit(input, id, field) {
+  renderAll();
+}
+
+function onStatusChange(id, sel) {
+  const val = sel.value;
+  saveField(id, "estado", val);
+  // Update select style
+  sel.className = `status-sel s-${val}`;
+  if (!db) renderSummary();
+}
+
+function renderSummary() {
+  const sym = currSymbol();
+  let totalAll = 0, totalFlights = 0, totalAccom = 0;
+  let flightCount = 0, nightCount = 0, bookedCount = 0, pendingDef = 0;
+
+  LEGS_BASE.forEach(leg => {
+    const s = state[leg.id] || {};
+    const costo = parseFloat(s.costo) || 0;
+    totalAll += costo;
+    if (leg.tipo === "vuelo" || leg.tipo === "traslado") { totalFlights += costo; flightCount++; }
+    if (leg.tipo === "estadia") { totalAccom += costo; if (leg.noches) nightCount += leg.noches; }
+    if (s.estado === "reservado" || s.estado === "pagado") bookedCount++;
+    if (leg.flexible && (leg.noches === null || leg.fecha_lle === "? (flexible)")) pendingDef++;
+  });
+
+  const fmt = n => n > 0 ? sym + " " + n.toLocaleString("es-AR", {maximumFractionDigits:0}) : "—";
+
+  document.getElementById("total-cost").textContent   = fmt(totalAll);
+  document.getElementById("total-sub").textContent    = totalAll > 0 ? "Total cargado" : "Sin costos cargados";
+  document.getElementById("per-person").textContent   = fmt(totalAll / 2);
+  document.getElementById("total-flights").textContent= fmt(totalFlights);
+  document.getElementById("flights-count").textContent= flightCount + " tramos";
+  document.getElementById("total-accom").textContent  = fmt(totalAccom);
+  document.getElementById("accom-nights").textContent = nightCount + " noches confirmadas";
+  document.getElementById("booked-count").textContent = bookedCount;
+  document.getElementById("total-legs").textContent   = LEGS_BASE.length;
+  document.getElementById("pending-count").textContent= pendingDef;
+}
+
+// ═══════════════════════════════════════════════════
+//  EXPORT / IMPORT JSON
+// ═══════════════════════════════════════════════════
+function exportJSON() {
+  const data = JSON.stringify({ version:1, state, exportedAt: new Date().toISOString() }, null, 2);
+  const blob = new Blob([data], { type:"application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url; a.download = "viaje-europa-2026.json"; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importJSON() {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = ".json";
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const parsed = JSON.parse(ev.target.result);
+        if (!parsed.state) throw new Error("Formato inválido");
+        state = parsed.state;
+        if (db) {
+          db.ref(FB_PATH).set(state).then(() => alert("✅ Datos importados y sincronizados."));
+        } else {
+          saveLocal();
+          renderAll();
+          alert("✅ Datos importados (solo local).");
+        }
+      } catch(err) {
+        alert("❌ Error al importar: " + err.message);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+window.addEventListener("DOMContentLoaded", initStorage);
+</script>
+</body>
+</html>
