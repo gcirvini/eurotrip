@@ -99,9 +99,15 @@
     tr.estadia  td:first-child { border-left: 3px solid var(--estadia); }
     tr.traslado td:first-child { border-left: 3px solid var(--traslado); }
 
-    tr.flexible td { background: #FFFDE7; }
-    tr.flexible:hover td { background: #FFF9C4; }
-    tr:not(.flexible):not(.total-row):hover td { background: #FAFAFA; }
+    tr.vuelo    td { background: #F0F7FF; }
+    tr.traslado td { background: #FFF3EE; }
+    tr.vuelo:hover    td { background: #DDEEFF; }
+    tr.traslado:hover td { background: #FFE8DF; }
+
+    tr.flexible td { background: #FFFDE7 !important; }
+    tr.flexible:hover td { background: #FFF9C4 !important; }
+    tr.estadia:not(.flexible):hover td { background: #F1F8F1; }
+    tr:not(.flexible):not(.total-row).estadia td { background: #fff; }
 
     /* badges */
     .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }
@@ -732,7 +738,7 @@ function renderTable() {
     <tr class="${eTipo}${leg.flexible?' flexible':''}">
       <td style="color:#90A4AE;font-size:12px;font-weight:700">${String(rowNum).padStart(2,"0")}</td>
       <td>${tipoSelect}</td>
-      <td style="font-weight:600">${editableCell(leg.id, "desc", desc, "Descripción")}${leg.flexible?` <span style="font-size:10px;color:var(--warn);font-weight:400">⚡flex</span>`:""}</td>
+      <td style="font-weight:600">${editableCell(leg.id, "desc", desc, "Descripción")}${leg.flexible?` <span style="font-size:10px;color:var(--warn);font-weight:400">⚡flex</span>`:""}${eTipo!=="estadia"?`<div style="margin-top:3px">${routeCell(leg.id, s.sub||leg.sub||"")}</div>`:""}</td>
       <td>${dateCell(leg.id, "fecha_sal", fechaSal)}</td>
       <td>${editableCell(leg.id, "hora_sal", horaSal, "08:00")}</td>
       <td>${dateCell(leg.id, "fecha_lle", fechaLle)}</td>
