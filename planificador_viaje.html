@@ -181,11 +181,10 @@
   <label style="margin-left:8px">Ver:</label>
   <select id="view-filter" onchange="renderAll()">
     <option value="all">Todo</option>
-    <option value="vuelo">Solo vuelos</option>
-    <option value="estadia">Solo estadías</option>
-    <option value="traslado">Solo traslados</option>
-    <option value="pendiente">Pendientes</option>
-    <option value="flexible">Fechas flexibles</option>
+    <option value="traslado">✈️ Traslados (vuelos, ferries, trenes…)</option>
+    <option value="estadia">🏨 Solo estadías</option>
+    <option value="pendiente">⏳ Pendientes</option>
+    <option value="flexible">⚡ Fechas flexibles</option>
   </select>
   <div class="spacer"></div>
   <button class="btn btn-primary" onclick="openAddModal()">+ Agregar tramo</button>
@@ -670,9 +669,8 @@ function renderTable() {
     const s = state[leg.id] || {};
 
     // Apply filter
-    if (filter === "vuelo"     && leg.tipo !== "vuelo")    return;
+    if (filter === "traslado"  && leg.tipo === "estadia")   return;
     if (filter === "estadia"   && leg.tipo !== "estadia")  return;
-    if (filter === "traslado"  && leg.tipo !== "traslado") return;
     if (filter === "pendiente" && s.estado !== "pendiente") return;
     if (filter === "flexible"  && !leg.flexible)           return;
 
@@ -831,8 +829,13 @@ function commitRouteEdit(id) {
   const from = document.getElementById("route-from-"+id)?.value || "";
   const to   = document.getElementById("route-to-"+id)?.value   || "";
   if (!from && !to) { renderAll(); return; }
-  const val = [from, to].filter(Boolean).join(" → ");
-  saveField(id, "sub", val);
+
+  const fromCity = AIRPORTS.find(a => a.code === from)?.city || from;
+  const toCity   = AIRPORTS.find(a => a.code === to)?.city   || to;
+
+  saveField(id, "sub",  [from, to].filter(Boolean).join(" → "));
+  saveField(id, "desc", [fromCity, toCity].filter(Boolean).join(" → "));
+
   if (!db) renderAll();
 }
 
