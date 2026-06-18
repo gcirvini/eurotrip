@@ -369,14 +369,18 @@ let db = null;
 function defaultState() {
   const s = {};
   LEGS_BASE.forEach(l => {
-    s[l.id] = { hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
+    s[l.id] = { desc: l.desc, sub: l.sub||"", fecha_sal: l.fecha_sal, fecha_lle: l.fecha_lle, hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
   });
   return s;
 }
 
 function mergeState(remote) {
   LEGS_BASE.forEach(l => {
-    if (!remote[l.id]) remote[l.id] = { hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
+    if (!remote[l.id]) remote[l.id] = { desc: l.desc, sub: l.sub||"", fecha_sal: l.fecha_sal, fecha_lle: l.fecha_lle, hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
+    // Agrega campos nuevos a registros viejos
+    if (!remote[l.id].desc)      remote[l.id].desc      = l.desc;
+    if (!remote[l.id].fecha_sal) remote[l.id].fecha_sal = l.fecha_sal;
+    if (!remote[l.id].fecha_lle) remote[l.id].fecha_lle = l.fecha_lle;
   });
   return remote;
 }
@@ -389,8 +393,21 @@ function initStorage() {
     firebase.initializeApp(FIREBASE_CONFIG);
     db = firebase.database();
 
+    // Fallback: si Firebase no responde en 4 segundos, usamos datos locales
+    let fbReady = false;
+    const fbTimeout = setTimeout(() => {
+      if (!fbReady) {
+        console.warn("Firebase timeout — usando datos locales");
+        setSyncStatus("err", "Sin Firebase · local");
+        loadLocal();
+        renderAll();
+      }
+    }, 4000);
+
     // Escucha cambios en tiempo real — se dispara también al cargar
     db.ref(FB_PATH).on("value", snap => {
+      fbReady = true;
+      clearTimeout(fbTimeout);
       const val = snap.val();
       if (val) {
         state = mergeState(val);
@@ -398,6 +415,13 @@ function initStorage() {
         state = defaultState();
         db.ref(FB_PATH).set(state);
       }
+      renderAll();
+    }, err => {
+      clearTimeout(fbTimeout);
+      console.error("Firebase DB error:", err);
+      setSyncStatus("err", "Firebase sin acceso · local");
+      document.getElementById("setup-banner").style.display = "flex";
+      loadLocal();
       renderAll();
     });
 
@@ -408,7 +432,7 @@ function initStorage() {
     });
   } catch(e) {
     console.error("Firebase error:", e);
-    setSyncStatus("err", "Error Firebase");
+    setSyncStatus("err", "Error Firebase · local");
     loadLocal(); renderAll();
   }
 }
@@ -501,8 +525,12 @@ function renderTable() {
     const badgeClass = `badge badge-${leg.tipo}`;
     const badgeTxt   = leg.tipo === "vuelo" ? "✈ Vuelo" : leg.tipo === "estadia" ? "🏨 Estadía" : "🚌 Traslado";
 
-    const horaSal = s.hora_sal ?? leg.hora_sal_def;
-    const horaLle = s.hora_lle ?? leg.hora_lle_def;
+    const desc     = s.desc     || leg.desc;
+    const sub      = s.sub      || leg.sub || "";
+    const fechaSal = s.fecha_sal || leg.fecha_sal;
+    const fechaLle = s.fecha_lle || leg.fecha_lle;
+    const horaSal  = s.hora_sal ?? leg.hora_sal_def;
+    const horaLle  = s.hora_lle ?? leg.hora_lle_def;
     const compania = s.compania || "";
     const costo    = s.costo    || "";
     const notas    = s.notas    || "";
@@ -517,14 +545,14 @@ function renderTable() {
     <tr class="${leg.tipo}${leg.flexible?' flexible':''}">
       <td style="color:#90A4AE;font-size:12px;font-weight:700">${String(rowNum).padStart(2,"0")}</td>
       <td><span class="${badgeClass}">${badgeTxt}</span>${leg.sub ? `<div style="font-size:10px;color:#90A4AE;margin-top:3px">${leg.sub}</div>`:""}</td>
-      <td style="font-weight:600">${leg.emoji} ${leg.desc}${leg.flexible?` <span style="font-size:10px;color:var(--warn);font-weight:400">⚡flex</span>`:""}</td>
-      <td style="white-space:nowrap;color:#546E7A">${leg.fecha_sal}</td>
+      <td style="font-weight:600">${leg.emoji} ${editableCell(leg.id, "desc", desc, "Descripción")}${leg.flexible?` <span style="font-size:10px;color:var(--warn);font-weight:400">⚡flex</span>`:""}<div style="font-size:10px;color:#90A4AE;margin-top:2px">${editableCell(leg.id, "sub", sub, "Origen → Destino")}</div></td>
+      <td>${editableCell(leg.id, "fecha_sal", fechaSal, "ej: Lun 4/8")}</td>
       <td>${editableCell(leg.id, "hora_sal", horaSal, "08:00")}</td>
-      <td style="white-space:nowrap;color:#546E7A">${leg.fecha_lle}</td>
+      <td>${editableCell(leg.id, "fecha_lle", fechaLle, "ej: Mar 5/8")}</td>
       <td>${editableCell(leg.id, "hora_lle", horaLle, "18:00")}</td>
       <td>${durCell}</td>
       <td>${editableCell(leg.id, "compania", compania, "Aerolínea / medio")}</td>
-      <td class="cost${costo?"":" empty"}">${costo ? currSymbol()+' '+Number(costo).toLocaleString('es-AR') : editableCell(leg.id, "costo", costo, "0")}</td>
+      <td class="cost${costo?"":" empty"}">${editableCell(leg.id, "costo", costo ? currSymbol()+' '+Number(costo).toLocaleString('es-AR') : "", "0")}</td>
       <td>
         <select class="status-sel ${estadoClass}" onchange="onStatusChange('${leg.id}',this)">
           ${estadoOpts}
