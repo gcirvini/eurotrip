@@ -645,6 +645,7 @@ function routeCell(id, value) {
 function startEdit(el, id, field, multiline) {
   multiline = multiline === "true" || multiline === true;
   const currentVal = (state[id] || {})[field] || "";
+  el.onclick = null;
   el.classList.add("editing");
   if (multiline) {
     el.innerHTML = `<textarea onblur="commitEdit(this,'${id}','${field}')" onkeydown="if(event.key==='Escape')renderAll()">${currentVal}</textarea>`;
@@ -657,6 +658,7 @@ function startEdit(el, id, field, multiline) {
 // ── Edición de fecha con calendar picker ──
 function startDateEdit(el, id, field) {
   const current = displayToIso((state[id]||{})[field] || "");
+  el.onclick = null;
   el.classList.add("editing");
   el.innerHTML = `<input type="date" value="${current||''}" min="2026-07-01" max="2026-12-31"
     style="border:2px solid #1565C0;border-radius:4px;padding:3px 6px;font-size:13px;font-family:inherit"
@@ -679,6 +681,7 @@ function commitDateEdit(input, id, field) {
 
 // ── Editor de ruta (aeropuertos) ──
 function startRouteEdit(el, id) {
+  el.onclick = null;
   const current = (state[id]||{}).sub || "";
   const parts   = current.split("→").map(s=>s.trim());
   const fromCode = parts[0] || "";
