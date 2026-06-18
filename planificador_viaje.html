@@ -188,6 +188,7 @@
     <option value="flexible">Fechas flexibles</option>
   </select>
   <div class="spacer"></div>
+  <button class="btn btn-primary" onclick="openAddModal()">+ Agregar tramo</button>
   <button class="btn btn-ghost" onclick="manualRefresh()">🔄 Actualizar</button>
   <button class="btn btn-ghost" onclick="window.print()">🖨 Imprimir</button>
   <button class="btn btn-ghost" onclick="exportJSON()">⬇ Exportar JSON</button>
@@ -258,6 +259,70 @@
     </thead>
     <tbody id="table-body"></tbody>
   </table>
+</div>
+
+<!-- ADD LEG MODAL -->
+<div id="add-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:28px;max-width:500px;width:92%;position:relative;font-size:13px">
+    <button onclick="closeAddModal()" style="position:absolute;top:12px;right:16px;background:none;border:none;font-size:18px;cursor:pointer;color:#999">✕</button>
+    <h2 style="font-size:16px;margin-bottom:18px">➕ Agregar tramo</h2>
+    <form id="add-form" onsubmit="event.preventDefault();saveNewLeg()">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="grid-column:1/-1">
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Tipo</label><br>
+          <select name="tipo" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+            <option value="vuelo">✈️ Vuelo / Ferry</option>
+            <option value="estadia">🏨 Estadía</option>
+            <option value="traslado">🚌 Traslado</option>
+          </select>
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Descripción</label><br>
+          <input name="desc" placeholder="ej: Estadía · Atenas" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Ruta (códigos de aeropuerto)</label>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+            <select name="sub_from" id="modal-from" style="flex:1;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+              <option value="">Origen</option>
+            </select>
+            <span style="color:#90A4AE">→</span>
+            <select name="sub_to" id="modal-to" style="flex:1;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+              <option value="">Destino</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Fecha salida</label><br>
+          <input type="date" name="fecha_sal" min="2026-07-01" max="2026-12-31" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Fecha llegada</label><br>
+          <input type="date" name="fecha_lle" min="2026-07-01" max="2026-12-31" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Hora salida</label><br>
+          <input name="hora_sal" placeholder="08:00" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Hora llegada</label><br>
+          <input name="hora_lle" placeholder="18:00" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+        </div>
+        <div>
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Compañía / Medio</label><br>
+          <input name="compania" placeholder="ej: Iberia" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px">
+        </div>
+        <div style="grid-column:1/-1">
+          <label style="font-size:11px;color:#888;font-weight:700;text-transform:uppercase">Notas</label><br>
+          <textarea name="notas" placeholder="Notas opcionales…" style="width:100%;margin-top:4px;padding:7px 10px;border:1px solid #DDD;border-radius:6px;font-size:13px;resize:vertical;min-height:52px"></textarea>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:18px;justify-content:flex-end">
+        <button type="button" onclick="closeAddModal()" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Agregar</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- SETUP MODAL -->
@@ -415,7 +480,7 @@ let state = {};
 let db = null;
 
 function defaultState() {
-  const s = {};
+  const s = { _custom: {} };
   LEGS_BASE.forEach(l => {
     s[l.id] = { desc: l.desc, sub: l.sub||"", fecha_sal: l.fecha_sal, fecha_lle: l.fecha_lle, hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
   });
@@ -423,14 +488,82 @@ function defaultState() {
 }
 
 function mergeState(remote) {
+  if (!remote._custom) remote._custom = {};
   LEGS_BASE.forEach(l => {
     if (!remote[l.id]) remote[l.id] = { desc: l.desc, sub: l.sub||"", fecha_sal: l.fecha_sal, fecha_lle: l.fecha_lle, hora_sal: l.hora_sal_def, hora_lle: l.hora_lle_def, compania:"", costo:"", estado:"pendiente", notas: l.nota_def };
-    // Agrega campos nuevos a registros viejos
     if (!remote[l.id].desc)      remote[l.id].desc      = l.desc;
     if (!remote[l.id].fecha_sal) remote[l.id].fecha_sal = l.fecha_sal;
     if (!remote[l.id].fecha_lle) remote[l.id].fecha_lle = l.fecha_lle;
   });
   return remote;
+}
+
+// Todos los tramos (base + custom) ordenados por fecha
+function getAllLegs() {
+  const customs = Object.values(state._custom || {});
+  const all = [
+    ...LEGS_BASE.map(l => ({ ...l, _base: true })),
+    ...customs.map(c => ({ ...c, _base: false }))
+  ];
+  return all.sort((a, b) => {
+    const sa = state[a.id] || a;
+    const sb = state[b.id] || b;
+    const da = displayToIso(sa.fecha_sal || a.fecha_sal) || "9999-12-31";
+    const db_ = displayToIso(sb.fecha_sal || b.fecha_sal) || "9999-12-31";
+    return da.localeCompare(db_);
+  });
+}
+
+// ── Agregar tramo custom ──
+function openAddModal() {
+  document.getElementById("add-modal").style.display = "flex";
+  document.getElementById("add-form").reset();
+  // Populate airport selects
+  const opts = `<option value="">—</option>` + AIRPORTS.map(a=>`<option value="${a.code}">${a.code} — ${a.city} ${a.country}</option>`).join("") + `<option value="OTR">Otro / manual</option>`;
+  document.getElementById("modal-from").innerHTML = opts;
+  document.getElementById("modal-to").innerHTML   = opts;
+}
+function closeAddModal() {
+  document.getElementById("add-modal").style.display = "none";
+}
+function saveNewLeg() {
+  const f    = document.getElementById("add-form");
+  const tipo = f.tipo.value;
+  const emojiMap = { vuelo:"✈️", estadia:"🏨", traslado:"🚌" };
+  const id   = "custom_" + Date.now();
+  const leg  = {
+    id, tipo, emoji: emojiMap[tipo], _base: false,
+    desc: f.desc.value || (tipo==="estadia"?"Nueva estadía":"Nuevo tramo"),
+    sub:  [f.sub_from.value, f.sub_to.value].filter(v=>v&&v!=="OTR").join(" → ") || "",
+    fecha_sal: f.fecha_sal.value || "", fecha_lle: f.fecha_lle.value || "",
+    hora_sal_def: f.hora_sal.value||"", hora_lle_def: f.hora_lle.value||"",
+    nota_def: f.notas.value||"",
+    dur: null, noches: null, flexible: false,
+  };
+  // Guardar en _custom y en state[id]
+  if (!state._custom) state._custom = {};
+  state._custom[id] = leg;
+  state[id] = {
+    desc: leg.desc, sub: leg.sub,
+    fecha_sal: leg.fecha_sal, fecha_lle: leg.fecha_lle,
+    hora_sal: leg.hora_sal_def, hora_lle: leg.hora_lle_def,
+    compania: f.compania.value||"", costo:"", estado:"pendiente",
+    notas: leg.nota_def,
+  };
+  if (db) {
+    db.ref(`${FB_PATH}/_custom/${id}`).set(leg);
+    db.ref(`${FB_PATH}/${id}`).set(state[id]);
+  } else { localStorage.setItem("viaje-europa-2026", JSON.stringify(state)); renderAll(); }
+  closeAddModal();
+}
+function deleteLeg(id) {
+  if (!confirm("¿Eliminar este tramo?")) return;
+  delete state._custom[id];
+  delete state[id];
+  if (db) {
+    db.ref(`${FB_PATH}/_custom/${id}`).remove();
+    db.ref(`${FB_PATH}/${id}`).remove();
+  } else { localStorage.setItem("viaje-europa-2026", JSON.stringify(state)); renderAll(); }
 }
 
 // ═══════════════════════════════════════════════════
@@ -533,17 +666,7 @@ function renderTable() {
   let rows = "";
   let rowNum = 0;
 
-  // Section labels
-  const sections = {
-    "01": "🌍 Ida — Argentina → España",
-    "03": "🏖️ Islas Baleares",
-    "07": "🏙️ Barcelona",
-    "08": "🇮🇹 Italia",
-    "14": "🔙 Vuelta a Madrid",
-    "16": "🏠 Regreso a Argentina"
-  };
-
-  LEGS_BASE.forEach(leg => {
+  getAllLegs().forEach(leg => {
     const s = state[leg.id] || {};
 
     // Apply filter
@@ -554,11 +677,6 @@ function renderTable() {
     if (filter === "flexible"  && !leg.flexible)           return;
 
     rowNum++;
-
-    // Section divider
-    if (sections[leg.id] && filter === "all") {
-      rows += `<tr class="section-div"><td colspan="12">${sections[leg.id]}</td></tr>`;
-    }
 
     // Duration / noches cell — auto-calcula si hay fechas ISO
     let durCell = "";
@@ -609,7 +727,7 @@ function renderTable() {
           ${estadoOpts}
         </select>
       </td>
-      <td class="nota${notas?"":" empty"}">${editableCell(leg.id, "notas", notas, "Agregar nota…", true)}</td>
+      <td class="nota${notas?"":" empty"}">${editableCell(leg.id, "notas", notas, "Agregar nota…", true)}${!leg._base?` <button onclick="deleteLeg('${leg.id}')" title="Eliminar tramo" style="margin-left:6px;background:none;border:none;cursor:pointer;color:#EF5350;font-size:14px">🗑</button>`:""}</td>
     </tr>`;
   });
 
@@ -739,7 +857,7 @@ function renderSummary() {
   let totalAll = 0, totalFlights = 0, totalAccom = 0;
   let flightCount = 0, nightCount = 0, bookedCount = 0, pendingDef = 0;
 
-  LEGS_BASE.forEach(leg => {
+  getAllLegs().forEach(leg => {
     const s = state[leg.id] || {};
     const costo = parseFloat(s.costo) || 0;
     totalAll += costo;
