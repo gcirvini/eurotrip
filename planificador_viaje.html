@@ -512,12 +512,17 @@ function getAllLegs() {
     ...LEGS_BASE.filter(l => !deleted[l.id]).map(l => ({ ...l, _base: true })),
     ...customs.map(c => ({ ...c, _base: false }))
   ];
+  const tipoOrder = { vuelo: 0, traslado: 1, estadia: 2 };
   return all.sort((a, b) => {
     const sa = state[a.id] || a;
     const sb = state[b.id] || b;
     const da = displayToIso(sa.fecha_sal || a.fecha_sal) || "9999-12-31";
     const db_ = displayToIso(sb.fecha_sal || b.fecha_sal) || "9999-12-31";
-    return da.localeCompare(db_);
+    if (da !== db_) return da.localeCompare(db_);
+    // Misma fecha: vuelo → traslado → estadía
+    const ta = tipoOrder[sa._tipo || a.tipo] ?? 1;
+    const tb = tipoOrder[sb._tipo || b.tipo] ?? 1;
+    return ta - tb;
   });
 }
 
